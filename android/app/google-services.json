@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "281669064729",
+    "project_id": "my-uptedu-sosmascota",
+    "storage_bucket": "my-uptedu-sosmascota.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281669064729:android:2d4cbc6d4c491888467288",
+        "android_client_info": {
+          "package_name": "com.uptedu.sosmascotatacna"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTNeFrVq2oyqlGIqIHsnEIxpQ84EMZQsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
