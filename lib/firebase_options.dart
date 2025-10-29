@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -52,11 +49,21 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCTNeFrVq2oyqlGIqIHsnEIxpQ84EMZQsA',
-    appId: '1:281669064729:android:2d4cbc6d4c491888467288',
-    messagingSenderId: '281669064729',
-    projectId: 'my-uptedu-sosmascota',
-    storageBucket: 'my-uptedu-sosmascota.firebasestorage.app',
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyB4FS9TjCppdXCO5K_DaMRO-XsoJOrgI5g',
+    appId: '1:326421196221:web:51b1d53cb1f6d0465276d4',
+    messagingSenderId: '326421196221',
+    projectId: 'my-smii-sosmascota',
+    authDomain: 'my-smii-sosmascota.firebaseapp.com',
+    storageBucket: 'my-smii-sosmascota.firebasestorage.app',
   );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyAgr12r0QnU3_CoKKPqcJN2Bq9sLQhmNIk',
+    appId: '1:326421196221:android:5141d310e9503ce35276d4',
+    messagingSenderId: '326421196221',
+    projectId: 'my-smii-sosmascota',
+    storageBucket: 'my-smii-sosmascota.firebasestorage.app',
+  );
+
 }

@@ -1,153 +1,105 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
-import 'package:provider/provider.dart';
+import 'app.dart';
 
-import 'controladores/tema_controller.dart';
+// 🔹 Importa el servicio TFLite
+import 'package:sos_mascotas/servicios/servicio_tflite.dart';
 
-import 'vistamodelos/autenticacion_vistamodelo.dart';
-import 'paginas/login/pagina_login.dart';
-import 'paginas/login/pagina_registro.dart';
-import 'paginas/login/pantalla_verificacion.dart';
-import 'paginas/login/pagina_intro.dart';
-import 'paginas/usuario/pantalla_inicio_usuario.dart';
-import 'paginas/veterinario/pantalla_inicio_veterinario.dart';
-import 'paginas/admin/pantalla_inicio_admin.dart';
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
-// 🔧 Handler para notificaciones en segundo plano
+/// 📨 Handler cuando el mensaje llega en background (solo Android/iOS)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  print('📨 [Background] Mensaje: ${message.messageId}');
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint(
+    "📩 Mensaje recibido en background: ${message.notification?.title}",
+  );
 }
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ Inicializa Firebase con soporte multiplataforma
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 🔧 Inicializar handler de fondo
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  print("🚫 Firebase App Check desactivado para entorno de desarrollo.");
 
-  runApp(const MiAplicacion());
-}
-
-class MiAplicacion extends StatefulWidget {
-  const MiAplicacion({super.key});
-
-  @override
-  State<MiAplicacion> createState() => _MiAplicacionState();
-}
-
-class _MiAplicacionState extends State<MiAplicacion> {
-  @override
-  void initState() {
-    super.initState();
-
-    // 🔔 Notificaciones en primer plano
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        print("🔔 [Foreground] Notificación recibida:");
-        print("Título: ${message.notification!.title}");
-        print("Cuerpo: ${message.notification!.body}");
-      }
-    });
+  // 🔹 Inicializa modelos TFLite al arrancar la app
+  try {
+    await ServicioTFLite.inicializarModelos();
+    debugPrint("✅ Modelos TFLite inicializados correctamente");
+  } catch (e) {
+    debugPrint("⚠️ Error al inicializar modelos TFLite: $e");
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: temaActual,
-      builder: (context, modo, _) {
-        return ChangeNotifierProvider(
-          create: (_) => AutenticacionVistaModelo(),
-          child: MaterialApp(
-            title: 'SOSMascota',
-            debugShowCheckedModeBanner: false,
-            themeMode: modo,
-            theme: ThemeData(
-              brightness: Brightness.light,
-              primarySwatch: Colors.teal,
-              scaffoldBackgroundColor: Colors.grey.shade100,
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                centerTitle: true,
-              ),
-              elevatedButtonTheme: ElevatedButtonThemeData(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  textStyle: const TextStyle(fontSize: 16),
-                ),
-              ),
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.teal),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.teal, width: 2),
-                ),
-              ),
+  // 🔔 Configuración de notificaciones solo en móviles
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    final messaging = FirebaseMessaging.instance;
+
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    debugPrint(
+      '🔐 Permisos de notificaciones: ${settings.authorizationStatus}',
+    );
+    await messaging.subscribeToTopic("mascotas");
+
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    // 🧠 Handler de mensajes en background
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // 📩 Escuchar mensajes en primer plano
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('🔔 Mensaje recibido: ${message.notification?.title}');
+      if (message.notification != null) {
+        flutterLocalNotificationsPlugin.show(
+          0,
+          message.notification!.title,
+          message.notification!.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'default_channel',
+              'Notificaciones SOS Mascota',
+              importance: Importance.max,
+              priority: Priority.high,
             ),
-            darkTheme: ThemeData(
-              brightness: Brightness.dark,
-              colorScheme: const ColorScheme.dark(primary: Colors.teal),
-              scaffoldBackgroundColor: Colors.grey[900],
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                centerTitle: true,
-              ),
-              elevatedButtonTheme: ElevatedButtonThemeData(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  textStyle: const TextStyle(fontSize: 16),
-                ),
-              ),
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Colors.grey[800],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.teal),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.teal, width: 2),
-                ),
-              ),
-            ),
-            initialRoute: '/intro',
-            routes: {
-              '/verificar': (context) => const PantallaVerificacion(),
-              '/': (context) => const PaginaLogin(),
-              '/registro': (context) => const PaginaRegistro(),
-              '/inicioUsuario': (context) => const PantallaInicioUsuario(),
-              '/inicioVeterinario':
-                  (context) => const PantallaInicioVeterinario(),
-              '/inicioAdmin': (context) => const PantallaInicioAdmin(),
-              '/intro': (context) => const PaginaIntro(),
-            },
           ),
         );
-      },
-    );
+      }
+    });
+  } else {
+    debugPrint("🌐 Modo Web: notificaciones locales deshabilitadas.");
   }
+
+  // 🧩 Actualizar token FCM del usuario autenticado (solo si está logueado)
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .update({'token': token});
+      debugPrint("✅ Token actualizado para ${user.email}");
+    }
+  }
+
+  runApp(const MyApp());
 }

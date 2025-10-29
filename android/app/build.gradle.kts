@@ -1,64 +1,42 @@
-import java.util.Properties
-import java.io.FileInputStream
-
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
-}
-
-val flutterVersionCode = "3"
-val flutterVersionName = "2.0.2"
-
-// 🔓 Cargar propiedades desde key.properties
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.uptedu.sosmascotatacna"
-    compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    namespace = "com.smii.sosmascota"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
+    aaptOptions {
+        noCompress += "tflite"
     }
 
-    defaultConfig {
-        applicationId = "com.uptedu.sosmascotatacna"
-        minSdk = flutter.minSdkVersion
-        targetSdk = 35
-        versionCode = flutterVersionCode.toInt()
-        versionName = flutterVersionName
+    // ✅ Habilita compatibilidad con Java moderno + desugaring
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true // 👈 IMPORTANTE
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-        }
+    defaultConfig {
+        applicationId = "com.smii.sosmascota"
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+        multiDexEnabled = true // 👈 por si usas muchas dependencias
     }
 
     buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            isShrinkResources = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
@@ -67,7 +45,8 @@ flutter {
     source = "../.."
 }
 
+// 👇 AÑADE ESTE BLOQUE AL FINAL
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    add("coreLibraryDesugaring", "com.android.tools:desugar_jdk_libs:2.1.5")
+    add("implementation", "androidx.multidex:multidex:2.0.1")
 }

@@ -1,6 +1,6 @@
 {
-    "name": "sosmascotatacna",
-    "short_name": "sosmascotatacna",
+    "name": "sos_mascotas",
+    "short_name": "sos_mascotas",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
