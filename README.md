@@ -170,26 +170,6 @@ flutter run
 
 ---
 
-## 🧪 Capturas de Pantalla
-
-| Login | Reporte | Mapa | Chat |
-|:-----:|:--------:|:----:|:----:|
-| ![Login](https://via.placeholder.com/200x400?text=Login) | ![Reporte](https://via.placeholder.com/200x400?text=Reporte) | ![Mapa](https://via.placeholder.com/200x400?text=Mapa) | ![Chat](https://via.placeholder.com/200x400?text=Chat) |
-
-*(Reemplaza las imágenes por tus capturas reales o assets de `screenshots/`)*
-
----
-
-## 👥 Equipo de Desarrollo
-
-| Nombre | Rol | Función |
-|--------|------|----------|
-| **Christian Dennis Hinojosa Mucho** | Desarrollador Principal | Arquitectura, IA y Firebase |
-| **Julio y Kenji** | Soporte Técnico | Validación y mantenimiento |
-| **Ing. Lanchipa** | Supervisor Académico | Evaluación y control del proyecto |
-
----
-
 
 ## 🌍 Información Académica
 
