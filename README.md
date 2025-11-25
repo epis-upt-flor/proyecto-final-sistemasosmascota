@@ -1,5 +1,5 @@
 # 🐾 SOS Mascota  
-### Aplicación Móvil Inteligente de Rescate y Localización de Mascotas
+### Aplicación móvil para mejorar la efectividad de asistencia de mascotas perdidas con participación de voluntarios
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.24-blue?logo=flutter)
 ![Firebase](https://img.shields.io/badge/Firebase-integrado-orange?logo=firebase)
@@ -80,68 +80,9 @@ lib/
 
 ---
 
-## 🧱 Diagrama de Clases (Simplificado)
+# Coverage
 
-```plantuml
-@startuml
-title Diagrama de Clases - SOS Mascota
-
-class Usuario {
-  id
-  nombre
-  correo
-  telefono
-  rol
-  fotoUrl
-}
-
-class ReporteMascota {
-  id
-  tipo
-  descripcion
-  fotoUrl
-  fecha
-  usuarioId
-}
-
-class Avistamiento {
-  id
-  ubicacion
-  descripcion
-  fotoUrl
-  usuarioId
-}
-
-class Notificacion {
-  id
-  titulo
-  mensaje
-  fecha
-  usuarioId
-}
-
-class Chat {
-  id
-  usuarioId
-  publicadorId
-  reporteId
-  tipo
-}
-
-class Mensaje {
-  id
-  emisorId
-  texto
-  fecha
-}
-
-Usuario "1" --> "*" ReporteMascota
-Usuario "1" --> "*" Avistamiento
-Usuario "1" --> "*" Notificacion
-Usuario "1" --> "*" Chat
-Chat "1" --> "*" Mensaje
-@enduml
-```
+![image](assets/cobertura.png)
 
 ---
 

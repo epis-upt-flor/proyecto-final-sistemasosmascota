@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,13 +15,13 @@ class PantallaReporteMascota extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => ReporteMascotaVM(),
-      child: const _WizardReporte(),
+      child: const WizardReporte(),
     );
   }
 }
 
-class _WizardReporte extends StatelessWidget {
-  const _WizardReporte();
+class WizardReporte extends StatelessWidget {
+  const WizardReporte({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -157,13 +158,15 @@ class Paso1Mascota extends StatelessWidget {
                   GestureDetector(
                     onTap: () async {
                       final picker = ImagePicker();
+                      final safeContext = context;
                       final picked = await picker.pickImage(
                         source: ImageSource.gallery,
                       );
 
                       if (picked != null) {
                         try {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          if (!safeContext.mounted) return;
+                          ScaffoldMessenger.of(safeContext).showSnackBar(
                             const SnackBar(
                               content: Text("Analizando imagen... 🧠"),
                               backgroundColor: Colors.blueAccent,
@@ -173,8 +176,8 @@ class Paso1Mascota extends StatelessWidget {
 
                           final url = await vm.subirFoto(File(picked.path));
                           vm.agregarFoto(url);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          if (!safeContext.mounted) return;
+                          ScaffoldMessenger.of(safeContext).showSnackBar(
                             const SnackBar(
                               content: Text(
                                 "✅ Imagen válida detectada y subida correctamente.",
@@ -183,7 +186,8 @@ class Paso1Mascota extends StatelessWidget {
                             ),
                           );
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          if (!safeContext.mounted) return;
+                          ScaffoldMessenger.of(safeContext).showSnackBar(
                             SnackBar(
                               content: Text(
                                 e.toString().replaceAll("Exception: ", ""),
@@ -251,13 +255,15 @@ class Paso1Mascota extends StatelessWidget {
                       ElevatedButton.icon(
                         onPressed: () async {
                           final picker = ImagePicker();
+                          final safeContext = context;
                           final picked = await picker.pickImage(
                             source: ImageSource.camera,
                           );
                           if (picked == null) return;
 
                           try {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!safeContext.mounted) return;
+                            ScaffoldMessenger.of(safeContext).showSnackBar(
                               const SnackBar(
                                 content: Text("Analizando imagen... 🧠"),
                                 backgroundColor: Colors.blueAccent,
@@ -267,8 +273,8 @@ class Paso1Mascota extends StatelessWidget {
 
                             final url = await vm.subirFoto(File(picked.path));
                             vm.agregarFoto(url);
-
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!safeContext.mounted) return;
+                            ScaffoldMessenger.of(safeContext).showSnackBar(
                               const SnackBar(
                                 content: Text(
                                   "✅ Imagen válida detectada y subida correctamente.",
@@ -277,7 +283,8 @@ class Paso1Mascota extends StatelessWidget {
                               ),
                             );
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!safeContext.mounted) return;
+                            ScaffoldMessenger.of(safeContext).showSnackBar(
                               SnackBar(
                                 content: Text(
                                   e.toString().replaceAll("Exception: ", ""),
@@ -310,13 +317,15 @@ class Paso1Mascota extends StatelessWidget {
                       ElevatedButton.icon(
                         onPressed: () async {
                           final picker = ImagePicker();
+                          final safeContext = context;
                           final picked = await picker.pickImage(
                             source: ImageSource.gallery,
                           );
                           if (picked == null) return;
 
                           try {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!safeContext.mounted) return;
+                            ScaffoldMessenger.of(safeContext).showSnackBar(
                               const SnackBar(
                                 content: Text("Analizando imagen... 🧠"),
                                 backgroundColor: Colors.blueAccent,
@@ -326,8 +335,8 @@ class Paso1Mascota extends StatelessWidget {
 
                             final url = await vm.subirFoto(File(picked.path));
                             vm.agregarFoto(url);
-
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (!safeContext.mounted) return;
+                            ScaffoldMessenger.of(safeContext).showSnackBar(
                               const SnackBar(
                                 content: Text(
                                   "✅ Imagen válida detectada y subida correctamente.",
@@ -336,6 +345,7 @@ class Paso1Mascota extends StatelessWidget {
                               ),
                             );
                           } catch (e) {
+                            if (!safeContext.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -488,6 +498,14 @@ class Paso1Mascota extends StatelessWidget {
   }
 }
 
+typedef DatePickerFn = Future<DateTime?> Function();
+typedef TimePickerFn = Future<TimeOfDay?> Function();
+typedef MapaPickerFn = Future<Map<String, dynamic>?> Function();
+
+class WizardOverrides {
+  static MapaPickerFn? mapaOverride;
+}
+
 /// 🔹 Paso 2: Ubicación
 class Paso2Ubicacion extends StatelessWidget {
   const Paso2Ubicacion({super.key});
@@ -518,13 +536,19 @@ class Paso2Ubicacion extends StatelessWidget {
                       "Fecha de pérdida",
                     ).copyWith(suffixIcon: const Icon(Icons.calendar_today)),
                     onTap: () async {
-                      final fecha = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-
+                      final vm = context.read<ReporteMascotaVM>();
+                      final safeContext = context;
+                      final fechaFn =
+                          Zone.current[#showDatePicker] as DatePickerFn?;
+                      final fecha = fechaFn != null
+                          ? await fechaFn()
+                          : await showDatePicker(
+                              context: safeContext,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now(),
+                            );
+                      if (!safeContext.mounted) return;
                       if (fecha != null) {
                         // Guardar en el modelo y mostrar en el campo
                         vm.reporte.fechaPerdida =
@@ -543,10 +567,15 @@ class Paso2Ubicacion extends StatelessWidget {
                       "Hora aproximada",
                     ).copyWith(suffixIcon: const Icon(Icons.access_time)),
                     onTap: () async {
-                      final hora = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
+                      final horaFn =
+                          Zone.current[#showTimePicker] as TimePickerFn?;
+
+                      final hora = horaFn != null
+                          ? await horaFn()
+                          : await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
                       if (hora != null) {
                         vm.reporte.horaPerdida =
                             "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
@@ -592,20 +621,26 @@ class Paso2Ubicacion extends StatelessWidget {
                       elevation: 2,
                     ),
                     onPressed: () async {
-                      final resultado = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PantallaMapaOSM(),
-                        ),
-                      );
+                      final vm = context.read<ReporteMascotaVM>();
 
-                      if (resultado != null) {
+                      // 🌎 ¿Estamos en un test?
+                      final customFn = WizardOverrides.mapaOverride;
+
+                      final resultado = customFn != null
+                          ? await customFn() // ← simulación en test
+                          : await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PantallaMapaOSM(),
+                              ),
+                            );
+
+                      if (resultado != null && context.mounted) {
                         vm.reporte.direccion =
                             (resultado['direccion'] ?? '') as String;
                         vm.reporte.distrito =
                             (resultado['distrito'] ?? '') as String;
 
-                        // Si lat/lng vienen como double, los asignamos directamente
                         vm.reporte.latitud = resultado['lat'] is num
                             ? (resultado['lat'] as num).toDouble()
                             : null;
@@ -666,21 +701,35 @@ class Paso2Ubicacion extends StatelessWidget {
                         color: Color(0xFF4D9EF6),
                       ),
                       onPressed: () async {
-                        final resultado = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PantallaMapaOSM(),
-                          ),
-                        );
+                        final vm = context.read<ReporteMascotaVM>();
+                        final safeContext = context;
+
+                        final mapaFn = WizardOverrides.mapaOverride;
+
+                        final resultado = mapaFn != null
+                            ? await mapaFn()
+                            : await Navigator.push(
+                                safeContext,
+                                MaterialPageRoute(
+                                  builder: (_) => const PantallaMapaOSM(),
+                                ),
+                              );
+
+                        if (!safeContext.mounted) return;
 
                         if (resultado != null) {
                           vm.reporte.direccion = resultado['direccion'] ?? '';
                           vm.reporte.distrito = resultado['distrito'] ?? '';
-                          vm.reporte.latitud = resultado['lat'];
-                          vm.reporte.longitud = resultado['lng'];
 
-                          direccionCtrl.text =
-                              vm.reporte.direccion; // 🧠 autocompleta
+                          vm.reporte.latitud = resultado['lat'] is num
+                              ? (resultado['lat'] as num).toDouble()
+                              : null;
+
+                          vm.reporte.longitud = resultado['lng'] is num
+                              ? (resultado['lng'] as num).toDouble()
+                              : null;
+
+                          direccionCtrl.text = vm.reporte.direccion;
                         }
                       },
                     ),
@@ -907,7 +956,7 @@ Widget _gradientNavButton(String text, {VoidCallback? onTap}) =>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6366F1).withOpacity(0.3),
+              color: const Color(0xFF6366F1).withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),

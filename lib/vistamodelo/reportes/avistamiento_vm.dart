@@ -1,89 +1,179 @@
 import 'dart:io';
 import 'dart:math';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:sos_mascotas/app.dart';
 import 'package:sos_mascotas/servicios/notificacion_servicio.dart';
 import 'package:sos_mascotas/servicios/servicio_tflite.dart';
 import '../../modelo/avistamiento.dart';
 
+enum EstadoCarga { inicial, cargando, exito, error }
+
+/// 🧱 Wrapper para aislar servicios externos y plugins
+/// Esto permite mockearlos en los tests fácilmente.
+class AvistamientoServices {
+  Future<Directory> getTempDir() async => await getTemporaryDirectory();
+
+  Future<File?> compress(String path, String targetPath) async {
+    final result = await FlutterImageCompress.compressAndGetFile(
+      path,
+      targetPath,
+      quality: 70,
+    );
+    return result != null ? File(result.path) : null;
+  }
+
+  Future<Map<dynamic, dynamic>> detectarAnimal(File file) async {
+    return await ServicioTFLite.detectarAnimal(file);
+  }
+
+  Future<double> compararImagenes(File f1, File f2) async {
+    return await ServicioTFLite.compararImagenes(f1, f2);
+  }
+
+  Future<void> enviarPush({
+    required String titulo,
+    required String cuerpo,
+  }) async {
+    await NotificacionServicio.enviarPush(titulo: titulo, cuerpo: cuerpo);
+  }
+}
+
 class AvistamientoVM extends ChangeNotifier {
   Avistamiento avistamiento = Avistamiento();
-  bool _cargando = false;
+  EstadoCarga _estado = EstadoCarga.inicial;
+  String? _mensajeUsuario;
 
-  bool get cargando => _cargando;
+  EstadoCarga get estado => _estado;
+  String? get mensajeUsuario => _mensajeUsuario;
+  bool get cargando => _estado == EstadoCarga.cargando;
+
+  // 💉 Dependencias Inyectables
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
+  final http.Client _httpClient;
+  final AvistamientoServices _services;
+
+  // Constructor con Inyección
+  AvistamientoVM({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    http.Client? httpClient,
+    AvistamientoServices? services,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance,
+       _httpClient = httpClient ?? http.Client(),
+       _services = services ?? AvistamientoServices();
 
   void setDireccion(String v) => avistamiento.direccion = v;
   void setDescripcion(String v) => avistamiento.descripcion = v;
 
-  // 🔧 Comprimir imagen antes de subir
+  void limpiarMensaje() {
+    _mensajeUsuario = null;
+  }
+
+  void actualizarUbicacion({
+    required String direccion,
+    required String distrito,
+    required double latitud,
+    required double longitud,
+  }) {
+    avistamiento.direccion = direccion;
+    avistamiento.distrito = distrito;
+    avistamiento.latitud = latitud;
+    avistamiento.longitud = longitud;
+    notifyListeners();
+  }
+
+  // ----------------------------------------------------------------------
+  // 📸 Lógica de Imágenes
+  // ----------------------------------------------------------------------
+
   Future<File> _comprimirImagen(File archivo) async {
-    final dir = await getTemporaryDirectory();
+    // Usamos el wrapper inyectado
+    final dir = await _services.getTempDir();
     final targetPath =
         "${dir.absolute.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-    final result = await FlutterImageCompress.compressAndGetFile(
-      archivo.absolute.path,
-      targetPath,
-      quality: 70,
-    );
-
-    return result != null ? File(result.path) : archivo;
+    final result = await _services.compress(archivo.absolute.path, targetPath);
+    return result ?? archivo;
   }
 
-  // 📸 Subir foto con validación local (modelo TFLite)
-  Future<String> subirFoto(File archivo) async {
-    final comprimido = await _comprimirImagen(archivo);
-
-    final resultado = await ServicioTFLite.detectarAnimal(comprimido);
-    final tipo = resultado["etiqueta"];
-    final confianza = (resultado["confianza"] * 100).toStringAsFixed(2);
-
-    if (tipo == "otro" || resultado["confianza"] < 0.6) {
-      throw Exception(
-        "⚠️ No se detectó una mascota con claridad (confianza: $confianza%).",
-      );
-    }
-
-    // 🔔 Mostrar mensaje informativo
-    ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
-      SnackBar(
-        content: Text("🐾 Se detectó un $tipo ($confianza%)"),
-        backgroundColor: Colors.green.shade700,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child("avistamientos")
-        .child(uid)
-        .child("${DateTime.now().millisecondsSinceEpoch}.jpg");
-
-    await ref.putFile(comprimido);
-    return await ref.getDownloadURL();
-  }
-
-  // 💾 Guardar el avistamiento en Firestore
-  Future<bool> guardarAvistamiento() async {
+  Future<String?> subirFoto(File archivo) async {
     try {
-      _cargando = true;
+      _estado = EstadoCarga.cargando;
       notifyListeners();
 
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      final docRef = FirebaseFirestore.instance
-          .collection("avistamientos")
-          .doc();
+      final comprimido = await _comprimirImagen(archivo);
+
+      // 1. Analizar con IA (Wrapper)
+      final resultado = await _services.detectarAnimal(comprimido);
+      final tipo = resultado["etiqueta"];
+      final confianzaVal = resultado["confianza"];
+      final confianzaStr = (confianzaVal * 100).toStringAsFixed(2);
+
+      if (tipo == "otro" || confianzaVal < 0.6) {
+        _estado = EstadoCarga.error;
+        _mensajeUsuario =
+            "⚠️ No se detectó una mascota clara ($confianzaStr%). Intente otra foto.";
+        notifyListeners();
+        return null;
+      }
+
+      _mensajeUsuario = "🐾 Se detectó un $tipo ($confianzaStr%)";
+      notifyListeners();
+
+      // 2. Subir a Firebase Storage
+      final uid = _auth.currentUser!.uid;
+      final ref = _storage
+          .ref()
+          .child("avistamientos")
+          .child(uid)
+          .child("${DateTime.now().millisecondsSinceEpoch}.jpg");
+
+      await ref.putFile(comprimido);
+      final url = await ref.getDownloadURL();
+
+      _estado = EstadoCarga.inicial;
+      notifyListeners();
+      return url;
+    } catch (e) {
+      _estado = EstadoCarga.error;
+      _mensajeUsuario = e.toString().replaceAll("Exception: ", "");
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // 💾 Lógica de Guardado
+  // ----------------------------------------------------------------------
+
+  Future<bool> guardarAvistamiento() async {
+    final errorValidacion = _validarCamposLocal();
+    if (errorValidacion != null) {
+      _mensajeUsuario = errorValidacion;
+      _estado = EstadoCarga.error;
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      _estado = EstadoCarga.cargando;
+      notifyListeners();
+
+      final uid = _auth.currentUser!.uid;
+      final docRef = _firestore.collection("avistamientos").doc();
 
       avistamiento.id = docRef.id;
       avistamiento.usuarioId = uid;
-
       avistamiento.direccion = avistamiento.direccion.trim();
       avistamiento.distrito = avistamiento.distrito.trim();
 
@@ -92,52 +182,45 @@ class AvistamientoVM extends ChangeNotifier {
           ..addAll({"fechaRegistro": FieldValue.serverTimestamp()}),
       );
 
-      // 🔍 Intentar vincular con algún reporte de mascota perdida
+      // 2. Lógica de Negocio: Buscar coincidencia
       await _buscarCoincidenciaConReportes(avistamiento);
 
-      // 🔔 Notificación push global
-      await NotificacionServicio.enviarPush(
+      // 3. Notificación (Wrapper)
+      await _services.enviarPush(
         titulo: "Nuevo avistamiento 👀",
         cuerpo: "Se ha registrado un nuevo avistamiento de mascota.",
       );
 
-      _cargando = false;
+      _mensajeUsuario = "✅ Avistamiento guardado correctamente.";
+      _estado = EstadoCarga.exito;
       notifyListeners();
       return true;
     } catch (e) {
-      _cargando = false;
+      _mensajeUsuario = "❌ Error al guardar: $e";
+      _estado = EstadoCarga.error;
       notifyListeners();
-      debugPrint("❌ Error al guardar avistamiento: $e");
       return false;
     }
   }
 
-  // 🔹 Calcular distancia entre coordenadas (Haversine)
-  double _calcularDistancia(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
-    const R = 6371; // Radio de la Tierra en km
-    final dLat = _gradosARadianes(lat2 - lat1);
-    final dLon = _gradosARadianes(lon2 - lon1);
-    final a =
-        sin(dLat / 2) * sin(dLat / 2) +
-        cos(_gradosARadianes(lat1)) *
-            cos(_gradosARadianes(lat2)) *
-            sin(dLon / 2) *
-            sin(dLon / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
+  String? _validarCamposLocal() {
+    final desc = avistamiento.descripcion.trim();
+    final foto = avistamiento.foto.trim();
+
+    if (foto.isEmpty) return 'Debes subir una foto antes de guardar.';
+    if (!_esUbicacionValida(avistamiento.latitud, avistamiento.longitud)) {
+      return 'Debe seleccionar una ubicación válida en el mapa.';
+    }
+    if (desc.isEmpty) return 'La descripción no puede estar vacía.';
+    return null;
   }
 
-  double _gradosARadianes(double grados) => grados * pi / 180.0;
+  bool _esUbicacionValida(double? lat, double? lon) =>
+      lat != null && lon != null && (lat != 0 || lon != 0);
 
-  // 🔍 Buscar coincidencia entre avistamiento y reportes cercanos
   Future<void> _buscarCoincidenciaConReportes(Avistamiento av) async {
     try {
-      final reportes = await FirebaseFirestore.instance
+      final reportes = await _firestore
           .collection("reportes_mascotas")
           .where("estado", isEqualTo: "perdido")
           .get();
@@ -154,83 +237,80 @@ class AvistamientoVM extends ChangeNotifier {
           (data["longitud"] ?? 0).toDouble(),
         );
 
-        print("📍 Distancia con ${doc.id}: ${distancia.toStringAsFixed(2)} km");
+        if (distancia > 9.0) continue;
 
-        // Si está a más de 5 km, descartar
-        if (distancia > 5.0) continue;
-
-        // Descargar imágenes y comparar localmente
         final similitud = await _compararImagenes(av.foto, fotos.first);
-        print("🤖 Similitud con ${doc.id}: $similitud");
 
-        if (similitud >= 0.7) {
-          await FirebaseFirestore.instance
-              .collection("avistamientos")
-              .doc(av.id)
-              .update({"reporteId": doc.id});
+        if (similitud >= 0.5) {
+          await _firestore.collection("avistamientos").doc(av.id).update({
+            "reporteId": doc.id,
+          });
 
           final usuarioId = data["usuarioId"];
           await _notificarCoincidencia(usuarioId, av.id);
-
-          print("✅ Avistamiento vinculado con reporte ${doc.id}");
           break;
         }
       }
     } catch (e) {
-      print("⚠️ Error al buscar coincidencias: $e");
+      debugPrint("⚠️ Error silencioso: $e");
     }
   }
 
-  // 🧠 Comparar imágenes localmente usando embeddings TFLite
+  double _calcularDistancia(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const R = 6371;
+    final dLat = _gradosARadianes(lat2 - lat1);
+    final dLon = _gradosARadianes(lon2 - lon1);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(_gradosARadianes(lat1)) *
+            cos(_gradosARadianes(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return R * c;
+  }
+
+  double _gradosARadianes(double grados) => grados * pi / 180.0;
+
   Future<double> _compararImagenes(String url1, String url2) async {
     try {
       if (url1 == url2) return 1.0;
       final file1 = await _descargarImagen(url1);
       final file2 = await _descargarImagen(url2);
-      return await ServicioTFLite.compararImagenes(file1, file2);
+      return await _services.compararImagenes(file1, file2); // Usamos wrapper
     } catch (e) {
-      debugPrint("⚠️ Error comparando imágenes localmente: $e");
       return 0.0;
     }
   }
 
-  // 📥 Descargar imagen desde URL temporalmente
   Future<File> _descargarImagen(String url) async {
-    final response = await http.get(Uri.parse(url));
-    final dir = await getTemporaryDirectory();
+    final response = await _httpClient.get(
+      Uri.parse(url),
+    ); // Usamos cliente inyectado
+    final dir = await _services.getTempDir();
     final file = File(
-      "${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg",
+      "${dir.path}/${DateTime.now().millisecondsSinceEpoch}_temp.jpg",
     );
     await file.writeAsBytes(response.bodyBytes);
     return file;
   }
 
-  // 🔔 Notificar al dueño del reporte si hay coincidencia
   Future<void> _notificarCoincidencia(
     String usuarioId,
     String avistamientoId,
   ) async {
     try {
-      await NotificacionServicio.enviarPush(
+      await _services.enviarPush(
         titulo: "Posible coincidencia 🐾",
         cuerpo: "Tu mascota perdida podría haber sido vista recientemente.",
       );
     } catch (e) {
-      debugPrint("Error enviando notificación de coincidencia: $e");
+      debugPrint("Error notificacion: $e");
     }
-  }
-
-  // ✅ Actualizar ubicación
-  void actualizarUbicacion({
-    required String direccion,
-    required String distrito,
-    required double latitud,
-    required double longitud,
-  }) {
-    avistamiento.direccion = direccion;
-    avistamiento.distrito = distrito;
-    avistamiento.latitud = latitud;
-    avistamiento.longitud = longitud;
-    notifyListeners();
   }
 }

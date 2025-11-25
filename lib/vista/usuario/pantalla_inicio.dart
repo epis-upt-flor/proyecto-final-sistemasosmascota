@@ -48,7 +48,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 12,
                   offset: const Offset(3, 3),
                 ),
@@ -102,10 +102,16 @@ class _PantallaInicioState extends State<PantallaInicio> {
                 }),
                 const Spacer(),
                 const Divider(color: Colors.white38),
+                // 👇 Nuevo orden del final
                 _menuItem(
                   Icons.person,
                   "Perfil",
                   () => Navigator.pushNamed(context, "/perfil"),
+                ),
+                _menuItem(
+                  Icons.comment,
+                  "Comentarios",
+                  () => Navigator.pushNamed(context, "/comentarios"),
                 ),
                 _menuItem(Icons.exit_to_app, "Cerrar sesión", () async {
                   await FirebaseAuth.instance.signOut();
@@ -261,7 +267,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -492,6 +498,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
               "Mi Perfil",
               "Configuración de cuenta",
               onTap: () => Navigator.pushNamed(context, "/perfil"),
+            ),
+            _buildMenuItem(
+              Icons.comment,
+              "Comentarios",
+              "Lee y comparte experiencias",
+              onTap: () => Navigator.pushNamed(context, "/comentarios"),
             ),
             _buildMenuItem(
               Icons.exit_to_app,

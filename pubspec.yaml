@@ -1,5 +1,5 @@
 name: sos_mascotas
-description: "A new Flutter project."
+description: "SOS Mascota - Encuentra y reporta mascotas perdidas en Tacna"
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
@@ -38,17 +38,41 @@ dependencies:
   url_launcher: ^6.3.2
   lottie: ^3.1.0
   tflite_flutter: ^0.11.0
+  google_sign_in: ^5.4.0
+  share_plus: ^10.1.4
+  pdf: ^3.11.3
+  open_file: ^3.3.2
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.9
+  fake_cloud_firestore: ^4.0.0
+  firebase_auth_mocks: ^0.15.1
+  mocktail: ^1.0.4
+  firebase_storage_mocks: ^0.8.0+1
+  network_image_mock: ^2.1.1
+  firebase_core_platform_interface: ^6.0.2
+  flutter_image_compress_platform_interface: ^1.0.5
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icono/logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icono/logo.png"
 
 flutter:
   uses-material-design: true
   
   assets:
-    - assets/keys/service_account.json
+    #- assets/keys/service_account.json
     - assets/model/animales.tflite
     - assets/model/extractor_animales.tflite
     - assets/avatars/
+    - assets/Video/video.mp4
+    - assets/imagen/Registraavistamiento.png
+    - assets/icono/logo.png

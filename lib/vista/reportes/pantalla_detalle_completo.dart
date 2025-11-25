@@ -7,12 +7,18 @@ import 'package:url_launcher/url_launcher.dart';
 class PantallaDetalleCompleto extends StatefulWidget {
   final Map<String, dynamic> data;
   final String tipo;
+  final FirebaseFirestore firestore;
+  final FirebaseAuth auth;
 
-  const PantallaDetalleCompleto({
+  // Constructor con inyección de dependencias (sin const)
+  PantallaDetalleCompleto({
     super.key,
     required this.data,
     required this.tipo,
-  });
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+  }) : firestore = firestore ?? FirebaseFirestore.instance,
+       auth = auth ?? FirebaseAuth.instance;
 
   @override
   State<PantallaDetalleCompleto> createState() =>
@@ -33,11 +39,14 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     try {
       final usuarioId = widget.data["usuarioId"];
       if (usuarioId == null) return;
-      final doc = await FirebaseFirestore.instance
+
+      // 👈 CORREGIDO: Usamos widget.firestore
+      final doc = await widget.firestore
           .collection("usuarios")
           .doc(usuarioId)
           .get();
-      if (doc.exists) {
+
+      if (doc.exists && mounted) {
         setState(() {
           usuarioData = doc.data();
         });
@@ -45,7 +54,9 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     } catch (e) {
       debugPrint("Error cargando usuario: $e");
     } finally {
-      setState(() => cargandoUsuario = false);
+      if (mounted) {
+        setState(() => cargandoUsuario = false);
+      }
     }
   }
 
@@ -59,19 +70,26 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
   }
 
   Future<void> _abrirChat() async {
-    final user = FirebaseAuth.instance.currentUser!;
+    final safeContext = context;
+
+    // 👈 CORREGIDO: Usamos widget.auth
+    final user = widget.auth.currentUser!;
+
     final publicadorId = widget.data["usuarioId"];
     final reporteId = widget.data["id"];
     final tipo = widget.tipo;
 
     if (publicadorId == user.uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No puedes chatear contigo mismo.")),
-      );
+      if (safeContext.mounted) {
+        ScaffoldMessenger.of(safeContext).showSnackBar(
+          const SnackBar(content: Text("No puedes chatear contigo mismo.")),
+        );
+      }
       return;
     }
 
-    final chatExistente = await FirebaseFirestore.instance
+    // 👈 CORREGIDO: Usamos widget.firestore
+    final chatExistente = await widget.firestore
         .collection("chats")
         .where("publicadorId", isEqualTo: publicadorId)
         .where("usuarioId", isEqualTo: user.uid)
@@ -83,33 +101,30 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     if (chatExistente.docs.isNotEmpty) {
       chatId = chatExistente.docs.first.id;
     } else {
-      final nuevoChat = await FirebaseFirestore.instance
-          .collection("chats")
-          .add({
-            "reporteId": reporteId,
-            "tipo": tipo,
-            "publicadorId": publicadorId,
-            "usuarioId": user.uid,
-            "usuarios": [publicadorId, user.uid],
-            "fechaInicio": FieldValue.serverTimestamp(),
-          });
+      // 👈 CORREGIDO: Usamos widget.firestore
+      final nuevoChat = await widget.firestore.collection("chats").add({
+        "reporteId": reporteId,
+        "tipo": tipo,
+        "publicadorId": publicadorId,
+        "usuarioId": user.uid,
+        "usuarios": [publicadorId, user.uid],
+        "fechaInicio": FieldValue.serverTimestamp(),
+      });
       chatId = nuevoChat.id;
     }
-
-    if (context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PantallaChat(
-            chatId: chatId,
-            reporteId: reporteId,
-            tipo: tipo,
-            publicadorId: publicadorId,
-            usuarioId: user.uid,
-          ),
+    if (!safeContext.mounted) return;
+    Navigator.push(
+      safeContext,
+      MaterialPageRoute(
+        builder: (_) => PantallaChat(
+          chatId: chatId,
+          reporteId: reporteId,
+          tipo: tipo,
+          publicadorId: publicadorId,
+          usuarioId: user.uid,
         ),
-      );
-    }
+      ),
+    );
   }
 
   Color _colorPorEstado(String estado) {
@@ -132,7 +147,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     final data = widget.data;
     final esReporte = widget.tipo == "reporte";
 
-    // 📅 Campos dinámicos según tipo
     final fecha = esReporte
         ? data["fechaPerdida"] ?? "-"
         : data["fechaAvistamiento"] ?? "-";
@@ -157,7 +171,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
         ? "S/. ${data["recompensa"]}"
         : "Sin recompensa";
 
-    // ✅ Estado dinámico
     final estado = (data["estado"] ?? (esReporte ? "PERDIDO" : "AVISTADO"))
         .toString()
         .toUpperCase();
@@ -166,7 +179,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     final bool deshabilitarChat =
         estado == "ENCONTRADO" || estado == "CONFIRMADO";
 
-    // 🏷️ Título dinámico
     final tituloAppBar = esReporte
         ? "Detalle del Reporte"
         : "Detalle del Avistamiento";
@@ -194,7 +206,7 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 📸 Imagen principal
+            // ... (código de imagen y título igual que antes) ...
             Stack(
               alignment: Alignment.topRight,
               children: [
@@ -204,6 +216,11 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                         width: double.infinity,
                         height: 280,
                         fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 280,
+                          color: Colors.grey.shade300,
+                          child: const Icon(Icons.broken_image, size: 50),
+                        ),
                       )
                     : Container(
                         height: 280,
@@ -239,7 +256,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
               ],
             ),
 
-            // 🐶 Detalle general
             Container(
               transform: Matrix4.translationValues(0, -20, 0),
               decoration: const BoxDecoration(
@@ -289,7 +305,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                   ),
                   const SizedBox(height: 25),
 
-                  // 📍 Última ubicación
                   const Text(
                     "Última ubicación conocida",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -331,7 +346,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
 
                   const SizedBox(height: 25),
 
-                  // 💰 Recompensa (solo si es reporte)
                   if (esReporte && recompensa != "Sin recompensa")
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -371,7 +385,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
 
                   const SizedBox(height: 30),
 
-                  // 👤 Información de contacto
                   const Text(
                     "Información de contacto",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -387,7 +400,6 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                       style: TextStyle(color: Colors.redAccent),
                     ),
 
-                  // 🔎 Avistamientos relacionados
                   if (esReporte) ...[
                     const SizedBox(height: 40),
                     const Text(
@@ -399,8 +411,9 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                     ),
                     const SizedBox(height: 10),
 
+                    // 👈 CORREGIDO AQUÍ: Usamos widget.firestore
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
+                      stream: widget.firestore
                           .collection("avistamientos")
                           .where("reporteId", isEqualTo: data["id"])
                           .snapshots(),
@@ -429,6 +442,20 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PantallaDetalleCompleto(
+                                        data: a,
+                                        tipo: "avistamiento",
+                                        // Pasamos las instancias para mantener consistencia
+                                        firestore: widget.firestore,
+                                        auth: widget.auth,
+                                      ),
+                                    ),
+                                  );
+                                },
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.network(
@@ -459,13 +486,7 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
                                     final lng = (a["longitud"] as num?)
                                         ?.toDouble();
                                     if (lat != null && lng != null) {
-                                      final Uri uri = Uri.parse(
-                                        'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
-                                      );
-                                      launchUrl(
-                                        uri,
-                                        mode: LaunchMode.externalApplication,
-                                      );
+                                      _abrirEnMapa(lat, lng);
                                     }
                                   },
                                 ),
@@ -517,7 +538,9 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
   }
 
   Widget _buildContacto(Map<String, dynamic> user, bool deshabilitarChat) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    // 👈 CORREGIDO AQUÍ: Usamos widget.auth
+    final currentUser = widget.auth.currentUser;
+
     final nombre = user["nombre"] ?? "Usuario desconocido";
     final foto = user["fotoPerfil"];
     final correo = user["correo"] ?? "";
@@ -527,9 +550,9 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
     ImageProvider? imagen;
     if (foto != null && foto.isNotEmpty) {
       if (foto.startsWith("assets/")) {
-        imagen = AssetImage(foto); // ✅ carga avatar local
+        imagen = AssetImage(foto);
       } else if (foto.startsWith("http")) {
-        imagen = NetworkImage(foto); // ✅ carga desde Firebase
+        imagen = NetworkImage(foto);
       }
     }
 
@@ -539,10 +562,10 @@ class _PantallaDetalleCompletoState extends State<PantallaDetalleCompleto> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
+          const BoxShadow(
             color: Colors.black12,
             blurRadius: 6,
-            offset: const Offset(0, 3),
+            offset: Offset(0, 3),
           ),
         ],
       ),

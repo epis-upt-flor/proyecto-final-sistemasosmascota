@@ -1,10 +1,34 @@
-# =========================================================
-# 🧩 ARCHIVOS TEMPORALES Y COMPILADOS
-# =========================================================
+# ========================================
+# ARCHIVOS SENSIBLES (MUY IMPORTANTE)
+# ========================================
+# NUNCA subir llaves privadas o archivos secretos
+*.jks
+*.keystore
+key.properties
+
+# Firebase Admin (service account)
+service_account.json
+assets/keys/
+lib/servicios/servicio_openai.dart
+
+# Variables de entorno
+.env
+.env.*
+
+# ========================================
+# MISCELLANEOUS
+# ========================================
 *.class
 *.log
 *.pyc
 *.swp
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.lock
+
 .DS_Store
 .atom/
 .build/
@@ -14,125 +38,77 @@
 .swiftpm/
 migrate_working_dir/
 
-# =========================================================
-# 💻 IDEs Y CONFIGURACIONES LOCALES
-# =========================================================
+# ========================================
+# INTELLIJ / ANDROID STUDIO
+# ========================================
 *.iml
 *.ipr
 *.iws
 .idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
 
-# =========================================================
-# 🐦 FLUTTER / DART / PUB
-# =========================================================
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# ========================================
+# VISUAL STUDIO CODE
+# (solo ignoramos archivos locales, no toda la carpeta)
+# ========================================
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# ========================================
+# FLUTTER / DART / PUB
+# ========================================
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 build/
-coverage/
-generated_plugin_registrant.dart
 
-# =========================================================
-# 🧱 BUILD ARTIFACTS ANDROID / IOS
-# =========================================================
-android/.gradle/
-android/.idea/
-android/local.properties
+# API docs
+**/doc/api/
+
+# ========================================
+# iOS
+# ========================================
+**/ios/Flutter/.last_build_id
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/App.framework
+ios/ServiceDefinitions.json
+ios/Runner.xcworkspace/
+ios/Runner.xcodeproj/project.xcworkspace/
+
+# ========================================
+# ANDROID
+# ========================================
+/android/.gradle
+/android/captures/
+/android/local.properties
+
+# Output builds
 /android/app/debug
 /android/app/profile
 /android/app/release
-android/key.properties
-android/key.jks
-android/app/key.jks
-android/app/key.properties
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
-ios/Pods/
-ios/Podfile.lock
-ios/.generated/
-ios/ServiceDefinitions.json
-ios/Runner/GoogleService-Info.plist
 
-# =========================================================
-# 🔥 FIREBASE / GOOGLE / API KEYS
-# =========================================================
-# 🔒 Archivos de configuración de Firebase
-android/app/google-services.json
-android/app/google-services (1).json
-android/app/google-services.json.bak
-ios/Runner/GoogleService-Info.plist
-
-# 🔒 Archivos de servicio o claves privadas
-assets/keys/
-assets/keys/*.json
-assets/keys/*.txt
-assets/keys/*.yaml
-assets/keys/*.env
-
-# 🔒 Claves de API en código fuente
-lib/servicios/openai_servicio.dart
-lib/servicios/servicio_openai.dart
-lib/servicios/firebase_options.dart
-lib/firebase_options.dart
-
-# =========================================================
-# 🔐 VARIABLES DE ENTORNO
-# =========================================================
-.env
-.env.*
-*.env
-.env.local
-.env.development
-.env.production
-
-# =========================================================
-# 🧪 ARCHIVOS DE PRUEBA Y COBERTURA
-# =========================================================
-test_output/
-coverage/
-lcov.info
-test_driver/
-integration_test/
-
-# =========================================================
-# ⚙️ ARCHIVOS TEMPORALES DE SISTEMA
-# =========================================================
-*.tmp
-*.bak
-*.orig
-*.rej
-Thumbs.db
-desktop.ini
-ehthumbs.db
-$RECYCLE.BIN/
-
-# =========================================================
-# 🔧 OTROS
-# =========================================================
-*.map.json
+# ========================================
+# SIMBOLICACIÓN
+# ========================================
 app.*.symbols
-app.*.map.json
-*.keystore
-*.jks
-*.pem
-*.crt
-*.p12
-*.der
-*.key
 
-# =========================================================
-# 🧠 ARCHIVOS PERSONALES O DE CONFIGURACIÓN LOCAL
-# =========================================================
-firebase-debug.log
-google-services.json
-key.jks
-key.properties
-pubspec.lock
+# ========================================
+# OBFUSCATION
+# ========================================
+app.*.map.json
+
+# ========================================
+# OTROS
+# ========================================
+# Archivos generados por el sistema operativo
+Thumbs.db
+
+# Archivos de dependencias de macOS
+*.xcuserstate
+*.xcworkspace
+xcuserdata/

@@ -9,24 +9,64 @@ import 'package:sos_mascotas/servicios/notificacion_servicio.dart';
 import 'package:sos_mascotas/servicios/servicio_tflite.dart';
 import '../../modelo/reporte_mascota.dart';
 
+// ✅ CLASE WRAPPER: Envuelve lo "difícil" de testear (Estáticos y Plugins)
+class ReporteServiciosExternos {
+  Future<Map<String, dynamic>> detectarAnimal(File archivo) async {
+    return await ServicioTFLite.detectarAnimal(archivo);
+  }
+
+  Future<void> enviarPush({
+    required String titulo,
+    required String cuerpo,
+  }) async {
+    await NotificacionServicio.enviarPush(titulo: titulo, cuerpo: cuerpo);
+  }
+
+  Future<File> comprimirImagen(File archivo) async {
+    final dir = await getTemporaryDirectory();
+    final targetPath =
+        "${dir.absolute.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
+    final result = await FlutterImageCompress.compressAndGetFile(
+      archivo.absolute.path,
+      targetPath,
+      quality: 70,
+    );
+    return result != null ? File(result.path) : archivo;
+  }
+}
+
 class ReporteMascotaVM extends ChangeNotifier {
+  // 💉 INYECCIÓN DE DEPENDENCIAS
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
+  final ReporteServiciosExternos _servicios;
+
+  // Constructor que permite pasar Mocks o usa los reales por defecto
+  ReporteMascotaVM({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    ReporteServiciosExternos? servicios,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance,
+       _servicios = servicios ?? ReporteServiciosExternos();
+
   int _paso = 0;
   ReporteMascota reporte = ReporteMascota();
   bool _cargando = false;
-  bool _disposed = false; // 👈 nuevo flag de control
+  bool _disposed = false;
 
-  // ✅ FormKeys para validaciones
   final formKeyPaso1 = GlobalKey<FormState>();
   final formKeyPaso2 = GlobalKey<FormState>();
   final formKeyPaso3 = GlobalKey<FormState>();
 
-  // Getters
   int get paso => _paso;
   bool get cargando => _cargando;
   List<String> get fotos => reporte.fotos;
   List<String> get videos => reporte.videos;
 
-  // 🧩 Safe notify (evita error after dispose)
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -57,52 +97,34 @@ class ReporteMascotaVM extends ChangeNotifier {
     }
   }
 
-  // 📸 Agregar fotos
   void agregarFoto(String url) {
     reporte.fotos.add(url);
     _notify();
   }
 
-  // 🎥 Agregar videos
   void agregarVideo(String url) {
     reporte.videos.add(url);
     _notify();
   }
 
-  // 🔧 Comprimir imagen antes de subir
-  Future<File> _comprimirImagen(File archivo) async {
-    final dir = await getTemporaryDirectory();
-    final targetPath =
-        "${dir.absolute.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-    final result = await FlutterImageCompress.compressAndGetFile(
-      archivo.absolute.path,
-      targetPath,
-      quality: 70,
-    );
-
-    return result != null ? File(result.path) : archivo;
-  }
-
-  // 📸 Subir foto con validación local (modelo TFLite)
+  // 📸 Subir foto (Ahora usa _servicios para ser testeable)
   Future<String> subirFoto(File archivo) async {
-    final comprimido = await _comprimirImagen(archivo);
+    // Usamos el wrapper
+    final comprimido = await _servicios.comprimirImagen(archivo);
+    final resultado = await _servicios.detectarAnimal(comprimido);
 
-    // 🧠 Validar con el modelo TFLite local
-    final resultado = await ServicioTFLite.detectarAnimal(comprimido);
     final etiqueta = resultado["etiqueta"];
     final confianza = resultado["confianza"];
 
-    // ⚠️ Solo permitir “perro” o “gato” con buena confianza
     if (etiqueta == "otro" || confianza < 0.6) {
       throw Exception(
         "❌ La imagen no parece contener una mascota. Intenta con otra foto.",
       );
     }
 
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = _auth.currentUser!.uid;
 
-    final ref = FirebaseStorage.instance
+    final ref = _storage
         .ref()
         .child("reportes_mascotas")
         .child(uid)
@@ -112,11 +134,11 @@ class ReporteMascotaVM extends ChangeNotifier {
     return await ref.getDownloadURL();
   }
 
-  // 🎥 Subir video (máx 10 segundos)
+  // 🎥 Subir video
   Future<String> subirVideo(File archivo) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = _auth.currentUser!.uid;
 
-    final ref = FirebaseStorage.instance
+    final ref = _storage
         .ref()
         .child("reportes_mascotas")
         .child(uid)
@@ -126,16 +148,14 @@ class ReporteMascotaVM extends ChangeNotifier {
     return await ref.getDownloadURL();
   }
 
-  // 💾 Guardar reporte en Firestore
+  // 💾 Guardar reporte
   Future<bool> guardarReporte() async {
     try {
       _cargando = true;
       _notify();
 
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      final docRef = FirebaseFirestore.instance
-          .collection("reportes_mascotas")
-          .doc();
+      final uid = _auth.currentUser!.uid;
+      final docRef = _firestore.collection("reportes_mascotas").doc();
 
       reporte.id = docRef.id;
 
@@ -147,8 +167,8 @@ class ReporteMascotaVM extends ChangeNotifier {
         }),
       );
 
-      // 🔔 Notificación push global
-      await NotificacionServicio.enviarPush(
+      // Usamos el wrapper de notificación
+      await _servicios.enviarPush(
         titulo: "Nuevo reporte 🐾",
         cuerpo: "Se ha registrado una nueva mascota perdida.",
       );
