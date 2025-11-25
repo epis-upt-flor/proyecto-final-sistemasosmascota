@@ -90,7 +90,7 @@ lib/
 
 ### 1️⃣ Clonar el repositorio
 ```bash
-git clone https://github.com/dennisdhm7/SOSMascota.git
+https://github.com/epis-upt-flor/proyecto-final-sistemasosmascota.git
 cd SOSMascota
 ```
 
